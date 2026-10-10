@@ -1,0 +1,9 @@
+{
+  "id": "town_hall",
+  "faction": "human",
+  "hp": 1200,
+  "cost": {"gold": 1200, "wood": 800},
+  "build_time": 15300,
+  "grid_width": 3,
+  "grid_height": 3
+}

@@ -1,0 +1,5 @@
+{
+  "id": "human",
+  "name": "Альянс",
+  "start_resources": {"gold": 5000, "wood": 2000, "oil": 2000}
+}

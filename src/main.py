@@ -158,6 +158,24 @@ def _load_game(event_bus, save_manager, name) -> Session:
     return session
 
 
+def _center_camera_on_unit(camera: Camera, unit: Unit,
+                           viewport_w: int, viewport_h: int) -> None:
+    """v1.5.25 ФИКС: центрировать камеру на юните. Раньше не было — отсюда
+    «крестьянина не видно», он спавнится в центре карты 768x768."""
+    camera.camera_x = float(unit.pixel_x) - viewport_w / 2.0
+    camera.camera_y = float(unit.pixel_y) - viewport_h / 2.0
+
+
+def _center_camera_on_first_unit(camera: Camera, session: Session,
+                                 viewport_w: int, viewport_h: int) -> None:
+    snap = session.state
+    if snap is None or not snap.units:
+        return
+    first = next(iter(snap.units.values()))
+    _center_camera_on_unit(camera, first, viewport_w, viewport_h)
+    camera.clamp(snap.map_data.width, snap.map_data.height)
+
+
 def _step_simulation(session: Session, dt: float) -> None:
     snap = session.state
     if snap is None:
@@ -260,7 +278,8 @@ def _load_all_assets(assets: AssetLoader) -> None:
     except Exception as exc:
         print(f"[assets] terrain: {exc}", file=sys.stderr)
     try:
-        assets.load_cursors(ASSET_CURSORS)
+        # v1.5.25: явный target_size=32 — курсор не займёт пол-экрана.
+        assets.load_cursors(ASSET_CURSORS, target_size=32)
     except Exception as exc:
         print(f"[assets] cursors: {exc}", file=sys.stderr)
 
@@ -275,14 +294,18 @@ def main() -> int:
     renderer = Renderer(tile_size=TILE_SIZE)
     camera = Camera(WINDOW_W, WINDOW_H)
     input_h = InputHandler()
-    cursors = CursorRenderer()
+    cursors = CursorRenderer(draw_size=32)
     fx_pool = FXPool(max_size=64)
     audio = AudioManager()
 
     menu = MainMenu(screen_w=WINDOW_W, screen_h=WINDOW_H)
     hud = GameHUD()
-    tax_panel = TaxPanel(x=10, y=WINDOW_H - 60,
-                         width=260, height=40, initial_percent=30)
+    # v1.5.25: размеры панели налога по канону v1.5.23 — 420x64, шрифт 22.
+    tax_panel = TaxPanel(
+        x=10, y=WINDOW_H - 80,
+        width=420, height=64,
+        initial_percent=30,
+    )
 
     event_bus = EventBus()
     save_manager = SaveLoadManager(saves_dir=SAVE_DIR)
@@ -322,6 +345,9 @@ def main() -> int:
                         in_menu = False
                         accumulator = 0.0
                         audio.play_peace(FRACTION)
+                        # v1.5.25: центрируем камеру на крестьянине.
+                        _center_camera_on_first_unit(
+                            camera, session, WINDOW_W, WINDOW_H)
                     elif act == MenuAction.LOAD_GAME:
                         names = save_manager.list_saves()
                         if names:
@@ -331,6 +357,8 @@ def main() -> int:
                                 in_menu = False
                                 accumulator = 0.0
                                 audio.play_peace(FRACTION)
+                                _center_camera_on_first_unit(
+                                    camera, session, WINDOW_W, WINDOW_H)
                             except Exception as exc:
                                 print(f"[load] {exc}", file=sys.stderr)
                     elif act == MenuAction.QUIT:
@@ -339,6 +367,11 @@ def main() -> int:
                 elif ev.type == pygame.MOUSEMOTION:
                     menu.handle_motion(ev.pos)
                 input_h.handle_menu_event(ev)
+                continue
+
+            # v1.5.25: UI-панели получают событие ПЕРВЫМИ, чтобы клики по ним
+            # не уходили в игровой мир (курсор, выделение юнита).
+            if tax_panel.handle_event(ev):
                 continue
 
             action = input_h.handle_game_event(ev)

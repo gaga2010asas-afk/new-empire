@@ -1,18 +1,12 @@
 # src/frontend/asset_loader.py
 """
-AssetLoader — тайлсет, курсоры, спрайты, снаряды, взрывы, иконки спеллов, кэш теней.
+AssetLoader — тайлсет, курсоры, спрайты, снаряды, взрывы, иконки, кэш теней.
 Зона: src/frontend/.
 
-Канон v1.5.1 §2: тень кэшируется, Surface в кадре не создаётся.
-Канон v1.5 §2: типы снарядов — "arrow", "axe", "ballista_bolt", "cannon_ball".
-Канон v1.5 §2: взрывы — assets/fx/explosions/.
-Канон v1.5.16 №16: сетка нарезки СЧИТАЕТСЯ ДИНАМИЧЕСКИ из размера файла
-                   (без хардкода 16×24 / 2048×3072 / 2560×3840).
-Канон v1.5.16 №15: имя файла ландшафта — summer_hd.png.
-
-[НЕТ ДАННЫХ]:
-- Формат assets/fx/explosions/ — поддержаны каталог PNG и лист.
-- Имена файлов взрывов и снарядов — задаются снаружи через ключи.
+Канон v1.5.16 №16: сетка тайлсета считается динамически из размера файла.
+Канон v1.5.19: страховка font.init() (в UI-модулях).
+Канон (фикс курсора): load_cursors(target_size=32) нормализует размер —
+               PNG любого размера (128, 256 …) не занимает пол-экрана.
 """
 
 from __future__ import annotations
@@ -26,7 +20,6 @@ import pygame
 
 log = logging.getLogger(__name__)
 
-# --- Канон v1.5 §1: размер одного тайла (священное число) ---
 TILE_SIZE: int = 128
 
 DEFAULT_TERRAIN_PATH: str = "assets/terrain/summer_hd.png"
@@ -35,18 +28,17 @@ DEFAULT_EXPLOSIONS_DIR: str = "assets/fx/explosions"
 DEFAULT_PROJECTILES_DIR: str = "assets/fx/projectiles"
 DEFAULT_SPELL_ICONS_DIR: str = "assets/ui/spells"
 
+DEFAULT_CURSOR_SIZE: int = 32
+
 
 @dataclass
 class AnimSpec:
-    """Раскладка одной анимации в спрайт-листе."""
     row: int
     frame_count: int
     directions: int = 1
 
 
 class AssetLoader:
-    """Загружает ассеты. Логики мира нет."""
-
     def __init__(self, tile_size: int = TILE_SIZE) -> None:
         self.tile_size: int = int(tile_size)
         self._terrain_sheet: pygame.Surface | None = None
@@ -67,7 +59,6 @@ class AssetLoader:
 
     # --- тайлсет -------------------------------------------------------------
     def load_terrain(self, path: str = DEFAULT_TERRAIN_PATH) -> None:
-        """Нарезать summer_hd.png. Сетка рассчитывается динамически (v1.5.16 №16)."""
         if not os.path.isfile(path):
             raise FileNotFoundError(f"[НЕТ ДАННЫХ] тайлсет не найден: {path}")
         sheet = pygame.image.load(path).convert_alpha()
@@ -77,12 +68,10 @@ class AssetLoader:
         cols = sw // ts
         rows = sh // ts
         if cols < 1 or rows < 1:
-            raise ValueError(
-                f"Тайлсет {sw}x{sh} меньше одного тайла {ts}x{ts}"
-            )
+            raise ValueError(f"Тайлсет {sw}x{sh} меньше одного тайла {ts}x{ts}")
         if sw % ts != 0 or sh % ts != 0:
             log.warning(
-                "Размер тайлсета %dx%d не кратен TILE_SIZE=%d — правый/нижний край обрезан.",
+                "Размер тайлсета %dx%d не кратен TILE_SIZE=%d — край обрезан.",
                 sw, sh, ts,
             )
 
@@ -104,8 +93,13 @@ class AssetLoader:
     def tile_count(self) -> int:
         return len(self.terrain_tiles)
 
-    # --- курсоры -------------------------------------------------------------
-    def load_cursors(self, directory: str = DEFAULT_CURSORS_DIR) -> None:
+    # --- курсоры (с нормализацией размера) -----------------------------------
+    def load_cursors(
+        self,
+        directory: str = DEFAULT_CURSORS_DIR,
+        target_size: int = DEFAULT_CURSOR_SIZE,
+    ) -> None:
+        """Загрузить курсоры. Все нормализуются до target_size x target_size."""
         self.cursors = {}
         if not os.path.isdir(directory):
             log.warning("Директория курсоров отсутствует: %s", directory)
@@ -119,6 +113,14 @@ class AssetLoader:
             except pygame.error as exc:
                 log.warning("Не удалось загрузить курсор %s: %s", path, exc)
                 continue
+
+            # Нормализация размера: любой PNG приводим к target_size.
+            if target_size > 0:
+                tw, th = surf.get_size()
+                if tw != target_size or th != target_size:
+                    surf = pygame.transform.smoothscale(
+                        surf, (target_size, target_size)
+                    )
             self.cursors[os.path.splitext(name)[0]] = surf
 
     def get_cursor(self, key: str) -> pygame.Surface | None:

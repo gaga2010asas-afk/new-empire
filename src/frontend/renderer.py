@@ -5,7 +5,7 @@ Renderer — послойная отрисовка. Прототип №7.
 
 Канон v1.5.21: _tint_cache по ключу (id(surface), tint).
 Канон v1.5.23: каскад тинта явно в render_units ПЕРЕД blit.
-Канон v1.5.4:  карта читается через map_data.get_tile_at(layer, x, y) -> int.
+Канон v1.5.4:  карта через map_data.get_tile_at(layer, x, y) -> int.
 Канон (индексация ландшафта): LANDSCAPE_TO_TILE транслирует код слоя
                (0 земля / 1 вода / 2 скалы-лес) в индекс тайла summer_hd.png.
 """
@@ -90,13 +90,15 @@ STATE_TO_ANIM: dict[int, str] = {
 
 
 # --- Маппинг слоя проходимости → индекс тайла summer_hd.png ---
-# Backend возвращает КОД слоя (0/1/2), а не индекс текстуры.
-# Здесь переводим код в индекс тайла для рендера.
-# TODO: Подобрать точные индексы фреймов после финальной визуальной проверки.
+# Атлас 2560x3840 = 20x30 тайлов по 128x128.
+# Ряды (сверху): 0-логотип, 1-3 кладка, 4-5 горы+трава, 6 лес,
+#   7-8 скалы, 9 земля, 10 вода-переход, 11 чистая трава,
+#   12-13 земля+трава, 14 чистая вода, 15-16 земля+камни.
+# TODO: при необходимости сдвинуть ±10 по строке для другого варианта тайла.
 LANDSCAPE_TO_TILE: dict[int, int] = {
-    0: 30,    # Слой 0 (Земля/Трава) -> тайл травы
-    1: 200,   # Слой 1 (Вода/Море)   -> тайл чистой воды
-    2: 350,   # Слой 2 (Скалы/Лес)   -> тайл непроходимых гор
+    0: 225,   # Слой 0 (Земля/Трава) -> чистая трава
+    1: 285,   # Слой 1 (Вода/Море)   -> чистая вода
+    2: 165,   # Слой 2 (Скалы/Лес)   -> серые глыбы
 }
 
 
@@ -134,11 +136,10 @@ class Renderer:
     def _is_visible(sx: int, sy: int, w: int, h: int, vw: int, vh: int) -> bool:
         return not (sx + w < 0 or sy + h < 0 or sx > vw or sy > vh)
 
-    # --- tint (v1.5.23) ------------------------------------------------------
+    # --- tint ----------------------------------------------------------------
     def _tinted_surface(
         self, surface: pygame.Surface, tint: tuple[int, int, int]
     ) -> pygame.Surface:
-        """Аппаратный ADD-tint с кэшем по (id(surface), tint)."""
         r = int(max(0, min(255, tint[0])))
         g = int(max(0, min(255, tint[1])))
         b = int(max(0, min(255, tint[2])))
@@ -159,7 +160,6 @@ class Renderer:
         return result
 
     def _unit_tint(self, u) -> tuple[int, int, int] | None:
-        """Вспомогательный helper. Основной каскад — в render_units."""
         tint = getattr(u, "tint", None)
         if tint is not None:
             try:
@@ -197,8 +197,6 @@ class Renderer:
                 idx = map_data.get_tile_at(layer, tx, ty)
                 if idx is None or idx < 0:
                     continue
-
-                # Превращаем код слоя бэкенда в реальный индекс текстуры WC2.
                 tile_idx = LANDSCAPE_TO_TILE.get(idx, idx)
                 tile_surf = assets.get_tile(tile_idx)
                 if tile_surf is None:
@@ -260,7 +258,7 @@ class Renderer:
                 continue
             surface.blit(sprite, (sx, sy))
 
-    # --- юниты (v1.5.23: каскад тинта внедрён прямо перед blit) -------------
+    # --- юниты --------------------------------------------------------------
     def render_units(self, surface, camera, units, assets, tick: int = 0) -> None:
         vw, vh = surface.get_size()
         ordered = sorted(
@@ -278,7 +276,6 @@ class Renderer:
             frame_index = ((tick // ANIM_FRAME_TICKS) + int(uid)) % len(frames)
             sprite = frames[frame_index]
 
-            # === v1.5.23: каскад определения тинта ПЕРЕД blit ===
             tint = getattr(unit, "tint", None)
             if tint is None and hasattr(unit, "stats") and isinstance(unit.stats, dict):
                 tint = unit.stats.get("tint")
@@ -291,7 +288,6 @@ class Renderer:
                 tint = (80, 80, 255) if unit.faction == "human" else (255, 80, 80)
             if tint is not None:
                 sprite = self._tinted_surface(sprite, tint)
-            # === /каскад ===
 
             sx, sy = camera.world_to_screen(unit.pixel_x, unit.pixel_y)
             w, h = sprite.get_size()
@@ -307,7 +303,6 @@ class Renderer:
         if banner_state is None or not banner_state.is_active:
             return
         hero_id = banner_state.assigned_hero_id
-        # TODO_OPTIMIZATION: Перевести на индексированный словарь O(1) в main.py
         hero = None
         for u in units:
             if getattr(u, "id", -1) == hero_id and u.state != STATE_DEAD:

@@ -3,7 +3,12 @@
 TaxPanel — панель глобального налога. Прототип №3.
 Зона: src/frontend/. Логики мира нет.
 
-Канон v1.5.24: рамка сдвинута на 1px внутрь — угол (rect.x, rect.y) остаётся BG.
+Канон v1.5.17: единая дизайн-система панелей (docs/07).
+Канон v1.5.19: страховка pygame.font.init() в dummy-окружениях.
+Канон v1.5.21: клик в правом краю трека даёт TAX_MAX (100%).
+Канон v1.5.23: заливка PANEL_BG_COLOR, затем рамка PANEL_BORDER_COLOR width=2.
+Канон (визуальный фикс): шрифт 22, PADDING 14, высота панели 64 —
+               текст читается без лупы.
 """
 
 from __future__ import annotations
@@ -11,22 +16,24 @@ from __future__ import annotations
 import pygame
 
 
+# --- Канон v1.5.17/23: единая дизайн-система панелей ---
 PANEL_BG_COLOR: tuple[int, int, int] = (18, 18, 18)
 PANEL_BORDER_COLOR: tuple[int, int, int] = (60, 50, 30)
 
+# --- Технические дефолты ---
 TAX_MIN: int = 0
 TAX_MAX: int = 100
-PANEL_W: int = 360
-PANEL_H: int = 56
-TRACK_H: int = 12
+PANEL_W: int = 420
+PANEL_H: int = 64
+TRACK_H: int = 14
 TRACK_BG: tuple[int, int, int] = (40, 40, 40)
 TRACK_FG: tuple[int, int, int] = (180, 140, 60)
-KNOB_R: int = 10
+KNOB_R: int = 12
 KNOB_COLOR: tuple[int, int, int] = (230, 200, 120)
 KNOB_OUTLINE: tuple[int, int, int] = (60, 40, 10)
 TEXT_COLOR: tuple[int, int, int] = (235, 220, 180)
-PADDING: int = 12
-FONT_SIZE_FALLBACK: int = 16
+PADDING: int = 14
+FONT_SIZE_FALLBACK: int = 22
 
 
 class TaxPanel:
@@ -36,7 +43,7 @@ class TaxPanel:
         self,
         font: pygame.font.Font | None = None,
         x: int = 16,
-        y: int = 700,
+        y: int = 680,
         width: int = PANEL_W,
         height: int = PANEL_H,
         initial_percent: int = 30,
@@ -54,6 +61,7 @@ class TaxPanel:
             TRACK_H,
         )
 
+    # --- доступ ---------------------------------------------------------------
     def get_percent(self) -> int:
         return self._percent
 
@@ -68,6 +76,7 @@ class TaxPanel:
     def current_tax_percent(self, value: int) -> None:
         self.set_percent(value)
 
+    # --- ввод -----------------------------------------------------------------
     def _is_on_track(self, pos: tuple[int, int]) -> bool:
         x, y = pos
         if y < self._track_rect.y or y > self._track_rect.bottom:
@@ -118,18 +127,18 @@ class TaxPanel:
         cy = self._track_rect.centery
         return pygame.Rect(cx - KNOB_R, cy - KNOB_R, KNOB_R * 2, KNOB_R * 2)
 
+    # --- отрисовка ------------------------------------------------------------
     def render(self, surface: pygame.Surface) -> None:
-        # v1.5.24: фон → рамка на 1px внутрь, угол остаётся BG.
+        # v1.5.23: СНАЧАЛА заливка фона, ЗАТЕМ рамка width=2.
         pygame.draw.rect(surface, PANEL_BG_COLOR, self.rect)
-        inner = self.rect.inflate(-2, -2)
-        pygame.draw.rect(surface, PANEL_BORDER_COLOR, inner, width=2)
+        pygame.draw.rect(surface, PANEL_BORDER_COLOR, self.rect, width=2)
 
         label = self.font.render("Налог:", True, TEXT_COLOR)
         value = self.font.render(f"{self._percent}%", True, TEXT_COLOR)
-        surface.blit(label, (self.rect.x + PADDING, self.rect.y + PADDING))
+        surface.blit(label, (self.rect.x + PADDING, self.rect.y + PADDING - 2))
         surface.blit(
             value,
-            (self.rect.right - PADDING - value.get_width(), self.rect.y + PADDING),
+            (self.rect.right - PADDING - value.get_width(), self.rect.y + PADDING - 2),
         )
 
         pygame.draw.rect(surface, TRACK_BG, self._track_rect)

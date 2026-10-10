@@ -1,0 +1,11 @@
+{
+  "id": "peasant",
+  "faction": "human",
+  "hp": 30,
+  "damage": 3,
+  "armor": 0,
+  "sprite": "sprites/human/workers/peasant.png",
+  "cost": {"gold": 400, "food": 1},
+  "build_time": 2700,
+  "triad_role": "infantry"
+}
