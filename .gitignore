@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+ENV/
+
+# Тесты и кэш
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Сохранения и логи
+saves/
+logs/
+*.log
+
+# VSCode и IDE
+.vscode/
+.idea/
+*.swp
+
+# ОС
+.DS_Store
+Thumbs.db
+
+# Исходные ассеты (разложены в assets/)
+upscayl_png_ultramix-balanced-4x_5x/
+
+# Временные
+*.tmp
+*.bak
+before.txt
+after.txt
